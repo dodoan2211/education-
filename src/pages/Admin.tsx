@@ -2,32 +2,8 @@ import { useState, useEffect } from "react";
 import Layout from "../components/Layout";
 import { db } from "../firebase";
 import { collection, updateDoc, doc, addDoc, serverTimestamp, onSnapshot, query, orderBy, deleteDoc, writeBatch, getDoc, getDocs, limit, setDoc } from "firebase/firestore";
-import { 
-  Shield, 
-  Loader2, 
-  UserCircle, 
-  Search, 
-  Edit2, 
-  Check, 
-  X, 
-  Users, 
-  Sparkles, 
-  Award, 
-  Zap, 
-  Calendar, 
-  RefreshCw, 
-  CheckCircle2, 
-  AlertTriangle,
-  UserCheck,
-  Building,
-  Mail,
-  Phone,
-  MessageSquare,
-  Trash2,
-  Globe,
-  Image as ImageIcon,
-  Bug
-} from "lucide-react";
+import { notifyGradeDone } from "../lib/telegram";
+import { Shield, Loader as Loader2, CircleUser as UserCircle, Search, CreditCard as Edit2, Check, X, Users, Sparkles, Award, Zap, Calendar, RefreshCw, CircleCheck as CheckCircle2, TriangleAlert as AlertTriangle, UserCheck, Building, Mail, Phone, MessageSquare, Trash2, Globe, Image as ImageIcon, Bug } from "lucide-react";
 import { useAuth } from "../AuthContext";
 import { useNavigate } from "react-router";
 import { getAuth } from "firebase/auth";
@@ -273,6 +249,14 @@ export default function Admin() {
           createdAt: serverTimestamp(),
           read: false
         });
+        notifyGradeDone(
+          user?.email || 'Admin',
+          subObj.userName,
+          subObj.userEmail,
+          subObj.resourceTitle,
+          gradingGrade,
+          subObj.competitionTitle
+        );
       }
 
       showToast("Đã cập nhật điểm số và phản hồi cho bài dự thi!");

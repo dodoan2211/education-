@@ -3,7 +3,8 @@ import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfi
 import { doc, setDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import { useNavigate, Link, useSearchParams } from "react-router";
-import { BookOpen, ShieldCheck, ShieldAlert, AlertCircle, Building, CheckCircle2 } from "lucide-react";
+import { BookOpen, ShieldCheck, ShieldAlert, CircleAlert as AlertCircle, Building, CircleCheck as CheckCircle2 } from "lucide-react";
+import { notifyNewUser } from "../lib/telegram";
 
 interface ProfessionalError {
   title: string;
@@ -229,6 +230,7 @@ export default function Login() {
             coins: 0,
             createdAt: new Date()
           });
+          notifyNewUser(userCredential.user.uid, name.trim(), email.trim());
         } catch (firestoreErr: any) {
           console.error("Lỗi khi ghi dữ liệu người dùng vào Firestore:", firestoreErr);
           throw new Error(`firestore-error: ${firestoreErr.code || firestoreErr.message}`);

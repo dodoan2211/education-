@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router";
-import { Heart, Send, Image as ImageIcon, Trash2, Globe, Sparkles, Check, Loader2, Info, X, MessageSquare, AlertCircle, MoreHorizontal, Share2, Edit2, UserPlus, UserMinus, ShieldCheck } from "lucide-react";
+import { Heart, Send, Image as ImageIcon, Trash2, Globe, Sparkles, Check, Loader as Loader2, Info, X, MessageSquare, CircleAlert as AlertCircle, MoveHorizontal as MoreHorizontal, Share2, CreditCard as Edit2, UserPlus, UserMinus, ShieldCheck } from "lucide-react";
 import { db, auth } from "../firebase";
 import { collection, addDoc, getDocs, query, orderBy, serverTimestamp, doc, updateDoc, deleteDoc, where, writeBatch, setDoc } from "firebase/firestore";
 import { useAuth } from "../AuthContext";
 import { useToast } from "../context/ToastContext";
 import UserProfileModal from "./UserProfileModal";
 import { motion, AnimatePresence } from "motion/react";
+import { notifyNewPost } from "../lib/telegram";
 
 enum OperationType {
   CREATE = 'create',
@@ -276,6 +277,14 @@ export default function CommunityFeed() {
       };
 
       const docRef = await addDoc(collection(db, "posts"), newPostData);
+
+      notifyNewPost(
+        docRef.id,
+        newPostData.userName,
+        user.email || '',
+        newPostData.content,
+        newPostData.imageUrl || undefined
+      );
       
       // Update local state proactively
       const localPost: Post = {

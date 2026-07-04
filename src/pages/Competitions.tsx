@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
 import Layout from "../components/Layout";
-import { Trophy, Calendar, Award, BookOpen, Send, CheckCircle2, RefreshCw, Sparkles, AlertCircle, Eye, FileText, ChevronRight, X } from "lucide-react";
+import { Trophy, Calendar, Award, BookOpen, Send, CircleCheck as CheckCircle2, RefreshCw, Sparkles, CircleAlert as AlertCircle, Eye, FileText, ChevronRight, X } from "lucide-react";
 import { db } from "../firebase";
 import { collection, addDoc, query, where, serverTimestamp, onSnapshot, orderBy } from "firebase/firestore";
 import { useAuth } from "../AuthContext";
 import { useToast } from "../context/ToastContext";
+import { notifyNewSubmission } from "../lib/telegram";
 
 interface Competition {
   id: string;
@@ -189,6 +190,14 @@ export default function Competitions() {
       };
 
       await addDoc(collection(db, "submissions"), submissionData);
+
+      notifyNewSubmission(
+        '',
+        submissionData.userName,
+        submissionData.userEmail,
+        submissionData.competitionTitle,
+        submissionData.resourceTitle
+      );
 
       // Add real-time notification
       await addDoc(collection(db, "notifications"), {
