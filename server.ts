@@ -52,29 +52,53 @@ async function sendPhoto(chatId: string | number, photo: string, caption: string
   return tgSend('sendPhoto', { chat_id: chatId, photo, caption, parse_mode: 'Markdown', ...extra });
 }
 
+// ---------- In-memory API key store (runtime override, cleared on restart) ----------
+let runtimeGeminiKey = process.env.GEMINI_API_KEY || "";
+
 // ---------- Menu Builders ----------
 function buildMainMenuMarkup() {
   return {
     inline_keyboard: [
+      // Row 1 — Dashboard
       [
-        { text: "📊 Thống kê tổng quan", callback_data: "cmd_stats" },
-        { text: "📋 GD Chờ duyệt", callback_data: "cmd_pending" }
+        { text: "📊 Thống kê", callback_data: "cmd_stats" },
+        { text: "💳 GD chờ duyệt", callback_data: "cmd_pending" }
       ],
+      // Row 2 — User management
       [
         { text: "🔍 Tìm người dùng", callback_data: "cmd_prompt_find" },
         { text: "👥 Danh sách NSD", callback_data: "cmd_prompt_listusers" }
       ],
+      // Row 3 — Rewards
       [
         { text: "💰 Tặng Coin", callback_data: "cmd_prompt_addcoin" },
         { text: "📦 Cấp Gói", callback_data: "cmd_prompt_setpkg" }
       ],
+      // Row 4 — Content
       [
         { text: "🏆 Cuộc thi & Bài nộp", callback_data: "cmd_competitions" },
         { text: "📝 Bài viết cộng đồng", callback_data: "cmd_posts" }
       ],
+      // Row 5 — Broadcast
       [
-        { text: "📢 Gửi thông báo broadcast", callback_data: "cmd_prompt_broadcast" }
+        { text: "📢 Broadcast tất cả NSD", callback_data: "cmd_prompt_broadcast" }
+      ],
+      // Row 6 — System config
+      [
+        { text: "⚙️ Cấu hình API Key", callback_data: "cmd_apikeys" }
       ]
+    ]
+  };
+}
+
+function buildApiKeyMenuMarkup() {
+  return {
+    inline_keyboard: [
+      [{ text: "🔑 Xem trạng thái API Keys", callback_data: "cmd_apikey_status" }],
+      [{ text: "✏️ Đổi Gemini API Key", callback_data: "cmd_prompt_set_gemini" }],
+      [{ text: "✏️ Đổi Telegram Bot Token", callback_data: "cmd_prompt_set_bottoken" }],
+      [{ text: "✏️ Đổi Telegram Chat ID", callback_data: "cmd_prompt_set_chatid" }],
+      [{ text: "🔙 Menu chính", callback_data: "cmd_menu" }]
     ]
   };
 }
@@ -89,7 +113,7 @@ async function startServer() {
   app.post("/api/generate", async (req, res) => {
     try {
       const { prompt, type } = req.body;
-      const apiKey = process.env.GEMINI_API_KEY;
+      const apiKey = runtimeGeminiKey || process.env.GEMINI_API_KEY;
       if (!apiKey) {
         return res.status(500).json({ error: "GEMINI_API_KEY is not set" });
       }
@@ -382,10 +406,18 @@ Hãy trả về một đối tượng JSON hợp lệ duy nhất, KHÔNG ĐƯỢ
       const db = getFirestore();
 
       const sendMainMenu = async (chatId: string | number) => {
+        const now = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+        const geminiStatus = (runtimeGeminiKey || process.env.GEMINI_API_KEY) ? '🟢 Hoạt động' : '🔴 Chưa cấu hình';
         await sendMessage(chatId,
-          `🌟 *HỆ THỐNG QUẢN TRỊ EDUCREATE* 🌟\n\n` +
-          `👋 Chào mừng Quản trị viên!\n` +
-          `Hãy chọn chức năng bên dưới:`,
+          `╔══════════════════════╗\n` +
+          `║  🎓 *EDUCREATE ADMIN*  ║\n` +
+          `╚══════════════════════╝\n\n` +
+          `🤖 *Bảng điều khiển quản trị*\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━\n` +
+          `🕐 ${now}\n` +
+          `🔮 Gemini AI: ${geminiStatus}\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+          `Chọn chức năng bên dưới 👇`,
           { reply_markup: buildMainMenuMarkup() }
         );
       };
@@ -414,30 +446,49 @@ Hãy trả về một đối tượng JSON hợp lệ duy nhất, KHÔNG ĐƯỢ
         // --- Stats ---
         if (data === 'cmd_stats') {
           try {
-            const [usersSnap, txSnap, postsSnap, subsSnap] = await Promise.all([
+            const [usersSnap, txSnap, txAllSnap, postsSnap, subsSnap, subsGradedSnap] = await Promise.all([
               db.collection('users').get(),
               db.collection('transactions').where('status', '==', 'pending').get(),
+              db.collection('transactions').get(),
               db.collection('posts').get(),
-              db.collection('submissions').get()
+              db.collection('submissions').get(),
+              db.collection('submissions').where('status', '==', 'Đã chấm điểm').get()
             ]);
 
             const allUsers = usersSnap.docs.map(d => d.data());
             const proUsers = allUsers.filter(u => u.package === 'pro').length;
             const enterpriseUsers = allUsers.filter(u => u.package === 'enterprise').length;
+            const adminUsers = allUsers.filter(u => u.package === 'admin').length;
             const freeUsers = allUsers.filter(u => !u.package || u.package === 'free').length;
+            const approvedTx = txAllSnap.docs.filter(d => d.data().status === 'approved').length;
 
-            const msg = `📊 *THỐNG KÊ TỔNG QUAN*\n\n` +
-                        `👥 *Tổng người dùng:* ${usersSnap.size}\n` +
-                        `   ├ 🆓 Free: ${freeUsers}\n` +
-                        `   ├ ⚡ Pro: ${proUsers}\n` +
-                        `   └ 🏢 Enterprise: ${enterpriseUsers}\n\n` +
-                        `💳 *GD đang chờ duyệt:* ${txSnap.size}\n` +
-                        `📝 *Bài viết cộng đồng:* ${postsSnap.size}\n` +
-                        `🏆 *Bài dự thi đã nộp:* ${subsSnap.size}\n\n` +
-                        `🕐 _Cập nhật: ${new Date().toLocaleString('vi-VN')}_`;
+            const now = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+            const msg =
+              `📊 *THỐNG KÊ TỔNG QUAN*\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+              `👥 *Người dùng:* ${usersSnap.size} tài khoản\n` +
+              `   ├ 🆓 Free: *${freeUsers}*\n` +
+              `   ├ ⚡ Pro: *${proUsers}*\n` +
+              `   ├ 🏢 Enterprise: *${enterpriseUsers}*\n` +
+              `   └ 🛡 Admin: *${adminUsers}*\n\n` +
+              `💳 *Giao dịch:*\n` +
+              `   ├ ⏳ Chờ duyệt: *${txSnap.size}*\n` +
+              `   └ ✅ Đã duyệt: *${approvedTx}*\n\n` +
+              `🌐 *Cộng đồng:*\n` +
+              `   └ 📝 Bài viết: *${postsSnap.size}*\n\n` +
+              `🏆 *Cuộc thi:*\n` +
+              `   ├ 📥 Tổng bài nộp: *${subsSnap.size}*\n` +
+              `   └ ✅ Đã chấm: *${subsGradedSnap.size}*\n\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━\n` +
+              `🕐 _${now}_`;
 
             await sendMessage(chatId, msg, {
-              reply_markup: { inline_keyboard: [[{ text: "🔙 Menu chính", callback_data: "cmd_menu" }]] }
+              reply_markup: {
+                inline_keyboard: [
+                  [{ text: "💳 Xem GD chờ duyệt", callback_data: "cmd_pending" }],
+                  [{ text: "🔙 Menu chính", callback_data: "cmd_menu" }]
+                ]
+              }
             });
           } catch (e: any) {
             await sendMessage(chatId, `❌ Lỗi lấy thống kê: ${e.message}`);
@@ -449,16 +500,33 @@ Hãy trả về một đối tượng JSON hợp lệ duy nhất, KHÔNG ĐƯỢ
         if (data === 'cmd_pending') {
           const q = await db.collection('transactions').where('status', '==', 'pending').orderBy('createdAt', 'desc').limit(5).get();
           if (q.empty) {
-            await sendMessage(chatId, `✅ *Tuyệt vời!*\nHiện tại không có giao dịch nào đang chờ duyệt.`,
+            await sendMessage(chatId,
+              `💳 *GIAO DỊCH CHỜ DUYỆT*\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+              `✅ Không có giao dịch nào đang chờ xử lý.\n\n` +
+              `_Hệ thống sẽ thông báo ngay khi có giao dịch mới._`,
               { reply_markup: { inline_keyboard: [[{ text: "🔙 Menu chính", callback_data: "cmd_menu" }]] } });
           } else {
-            await sendMessage(chatId, `📋 *Danh sách ${q.size} giao dịch chờ duyệt mới nhất:*`);
+            await sendMessage(chatId,
+              `💳 *GIAO DỊCH CHỜ DUYỆT* (${q.size} giao dịch)\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━\n` +
+              `_Hiển thị 5 giao dịch mới nhất — chọn Duyệt / Từ chối bên dưới mỗi GD:_`
+            );
             for (const docRef of q.docs) {
               const tx = docRef.data();
-              const amountStr = tx.type === 'deposit' ? `\n💰 *Số tiền:* ${Number(tx.amount || 0).toLocaleString()}đ` : '';
-              const msg = `👤 *Người dùng:* ${tx.userName || 'Không rõ'} (${tx.userEmail})\n` +
-                          `🔖 *Mã GD:* \`${docRef.id}\`\n` +
-                          `📦 *Yêu cầu:* ${tx.packageLabel || tx.packageKey || (tx.type === 'deposit' ? 'Nạp Coin' : '')}${amountStr}`;
+              const typeLabel = tx.type === 'deposit' ? '💰 Nạp Coin' : '📦 Nâng cấp Gói';
+              const detailStr = tx.type === 'deposit'
+                ? `💵 *Số tiền:* ${Number(tx.amount || 0).toLocaleString()} Coin`
+                : `📦 *Gói:* ${tx.packageLabel || tx.packageKey || 'Pro'} — ${Number(tx.amount || 0).toLocaleString()}đ`;
+              const createdStr = tx.createdAt?.toDate ? tx.createdAt.toDate().toLocaleString('vi-VN') : '—';
+              const msg =
+                `${typeLabel}\n` +
+                `━━━━━━━━━━━━━━━━\n` +
+                `👤 *${tx.userName || 'Không rõ'}*\n` +
+                `📧 ${tx.userEmail || '—'}\n` +
+                `${detailStr}\n` +
+                `🕐 ${createdStr}\n` +
+                `🔖 \`${docRef.id}\``;
               const markup = {
                 inline_keyboard: [[
                   { text: "✅ Duyệt", callback_data: `approve_tx_${docRef.id}` },
@@ -471,6 +539,8 @@ Hãy trả về một đối tượng JSON hợp lệ duy nhất, KHÔNG ĐƯỢ
                 await sendMessage(chatId, msg, { reply_markup: markup });
               }
             }
+            await sendMessage(chatId, `_Đã hiển thị xong ${q.size} giao dịch._`,
+              { reply_markup: { inline_keyboard: [[{ text: "🔙 Menu chính", callback_data: "cmd_menu" }]] } });
           }
           return;
         }
@@ -479,21 +549,33 @@ Hãy trả về một đối tượng JSON hợp lệ duy nhất, KHÔNG ĐƯỢ
         if (data === 'cmd_competitions') {
           const subsSnap = await db.collection('submissions').orderBy('submittedAt', 'desc').limit(5).get();
           if (subsSnap.empty) {
-            await sendMessage(chatId, `🏆 *Chưa có bài dự thi nào được nộp.*`,
+            await sendMessage(chatId,
+              `🏆 *CUỘC THI & BÀI DỰ THI*\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+              `📭 Chưa có bài dự thi nào được nộp.`,
               { reply_markup: { inline_keyboard: [[{ text: "🔙 Menu chính", callback_data: "cmd_menu" }]] } });
           } else {
-            await sendMessage(chatId, `🏆 *5 bài dự thi mới nhất:*`);
+            await sendMessage(chatId,
+              `🏆 *CUỘC THI & BÀI DỰ THI*\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━\n` +
+              `_5 bài dự thi mới nhất:_`
+            );
             for (const d of subsSnap.docs) {
               const sub = d.data();
               const statusEmoji = sub.status === 'Đã chấm điểm' ? '✅' : '⏳';
-              const gradeStr = sub.grade ? ` — Loại: *${sub.grade}*` : '';
-              const msg = `${statusEmoji} *${sub.userName}* (${sub.userEmail})\n` +
-                          `📄 *Tài liệu:* ${sub.resourceTitle}\n` +
-                          `🥇 *Cuộc thi:* ${sub.competitionTitle}\n` +
-                          `📊 *Trạng thái:* ${sub.status}${gradeStr}`;
+              const gradeStr = sub.grade ? `\n🏅 *Điểm:* Loại *${sub.grade}*` : '';
+              const submittedAt = sub.submittedAt?.toDate ? sub.submittedAt.toDate().toLocaleDateString('vi-VN') : '—';
+              const msg =
+                `${statusEmoji} *${sub.status}*\n` +
+                `━━━━━━━━━━━━\n` +
+                `👤 *${sub.userName}*\n` +
+                `📧 ${sub.userEmail}\n` +
+                `📄 *TL:* ${sub.resourceTitle}\n` +
+                `🥇 ${sub.competitionTitle}\n` +
+                `🕐 ${submittedAt}${gradeStr}`;
               await sendMessage(chatId, msg);
             }
-            await sendMessage(chatId, `_Để chấm điểm, vui lòng truy cập trang Quản trị._`,
+            await sendMessage(chatId, `_Để chấm điểm chi tiết, truy cập trang Quản trị._`,
               { reply_markup: { inline_keyboard: [[{ text: "🔙 Menu chính", callback_data: "cmd_menu" }]] } });
           }
           return;
@@ -503,19 +585,32 @@ Hãy trả về một đối tượng JSON hợp lệ duy nhất, KHÔNG ĐƯỢ
         if (data === 'cmd_posts') {
           const postsSnap = await db.collection('posts').orderBy('createdAt', 'desc').limit(5).get();
           if (postsSnap.empty) {
-            await sendMessage(chatId, `📝 *Chưa có bài viết cộng đồng nào.*`,
+            await sendMessage(chatId,
+              `📝 *BÀI VIẾT CỘNG ĐỒNG*\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+              `📭 Chưa có bài viết nào.`,
               { reply_markup: { inline_keyboard: [[{ text: "🔙 Menu chính", callback_data: "cmd_menu" }]] } });
           } else {
-            await sendMessage(chatId, `📝 *5 bài viết cộng đồng mới nhất:*`);
+            await sendMessage(chatId,
+              `📝 *BÀI VIẾT CỘNG ĐỒNG*\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━\n` +
+              `_5 bài viết mới nhất — nhấn 🗑 để xóa:_`
+            );
             for (const d of postsSnap.docs) {
               const post = d.data();
-              const preview = (post.content || '').slice(0, 150);
-              const msg = `👤 *${post.userName}*\n💬 ${preview}\n🔖 ID: \`${d.id}\``;
+              const preview = (post.content || '').slice(0, 120);
+              const likesCount = (post.likes || []).length + (post.loves || []).length;
+              const createdAt = post.createdAt?.toDate ? post.createdAt.toDate().toLocaleDateString('vi-VN') : '—';
+              const msg =
+                `👤 *${post.userName}*\n` +
+                `🕐 ${createdAt} · ❤️ ${likesCount}\n` +
+                `💬 ${preview}${(post.content || '').length > 120 ? '...' : ''}\n` +
+                `🔖 \`${d.id}\``;
               await sendMessage(chatId, msg, {
                 reply_markup: {
                   inline_keyboard: [[
-                    { text: "🗑 Xóa", callback_data: `delete_post_${d.id}` },
-                    { text: "➡ Tiếp", callback_data: "noop" }
+                    { text: "🗑 Xóa bài viết", callback_data: `delete_post_${d.id}` },
+                    { text: "✅ Bỏ qua", callback_data: "noop" }
                   ]]
                 }
               });
@@ -559,8 +654,120 @@ Hãy trả về một đối tượng JSON hợp lệ duy nhất, KHÔNG ĐƯỢ
 
         if (data === 'cmd_prompt_broadcast') {
           await sendMessage(chatId,
-            '📢 *GỬI THÔNG BÁO BROADCAST*\n\nVui lòng Reply (Trả lời) tin nhắn này với nội dung thông báo muốn gửi tới tất cả người dùng:',
+            '📢 *GỬI THÔNG BÁO BROADCAST*\n' +
+            '━━━━━━━━━━━━━━━━━━━━━━\n\n' +
+            'Vui lòng *Reply* (Trả lời) tin nhắn này với nội dung thông báo muốn gửi tới toàn bộ người dùng:\n\n' +
+            '_Lưu ý: Thông báo sẽ xuất hiện trong mục thông báo của tất cả tài khoản._',
             { reply_markup: { force_reply: true, selective: true } }
+          );
+          return;
+        }
+
+        // --- API Key menu ---
+        if (data === 'cmd_apikeys') {
+          const geminiKey = runtimeGeminiKey || process.env.GEMINI_API_KEY || '';
+          const botTok = process.env.TELEGRAM_BOT_TOKEN || botToken;
+          const chatIdCfg = process.env.TELEGRAM_CHAT_ID || ADMIN_CHAT_ID;
+          const maskKey = (k: string) => k ? `${k.slice(0, 6)}${'*'.repeat(Math.max(0, k.length - 10))}${k.slice(-4)}` : '❌ Chưa cấu hình';
+
+          const msg =
+            `⚙️ *CẤU HÌNH API KEY*\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `🤖 *Gemini AI Key:*\n` +
+            `   \`${maskKey(geminiKey)}\`\n` +
+            `   Status: ${geminiKey ? '🟢 Đã cấu hình' : '🔴 Chưa cấu hình'}\n\n` +
+            `📱 *Telegram Bot Token:*\n` +
+            `   \`${maskKey(botTok)}\`\n` +
+            `   Status: ${botTok ? '🟢 Hoạt động' : '🔴 Chưa cấu hình'}\n\n` +
+            `🆔 *Admin Chat ID:*\n` +
+            `   \`${chatIdCfg}\`\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `_Chọn chức năng để thay đổi:_`;
+
+          await sendMessage(chatId, msg, { reply_markup: buildApiKeyMenuMarkup() });
+          return;
+        }
+
+        if (data === 'cmd_apikey_status') {
+          const geminiKey = runtimeGeminiKey || process.env.GEMINI_API_KEY || '';
+          // Test Gemini key
+          let geminiTestResult = '⏳ Đang kiểm tra...';
+          if (geminiKey) {
+            try {
+              const testRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}`);
+              geminiTestResult = testRes.ok ? '🟢 Key hợp lệ & hoạt động tốt' : `🔴 Key lỗi (HTTP ${testRes.status})`;
+            } catch {
+              geminiTestResult = '🔴 Không thể kết nối';
+            }
+          } else {
+            geminiTestResult = '🔴 Chưa cấu hình';
+          }
+
+          // Test Telegram bot
+          let tgTestResult = '⏳ Đang kiểm tra...';
+          try {
+            const tgRes = await fetch(`https://api.telegram.org/bot${botToken}/getMe`);
+            const tgData = await tgRes.json();
+            tgTestResult = tgData.ok ? `🟢 Bot: @${tgData.result.username}` : '🔴 Token không hợp lệ';
+          } catch {
+            tgTestResult = '🔴 Không thể kết nối';
+          }
+
+          const msg =
+            `🔍 *KIỂM TRA TRẠNG THÁI API*\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `🤖 *Gemini AI:* ${geminiTestResult}\n\n` +
+            `📱 *Telegram Bot:* ${tgTestResult}\n\n` +
+            `🔥 *Firebase Admin:* ${getApps().length ? '🟢 Đã kết nối' : '🔴 Chưa kết nối'}\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `🕐 _${new Date().toLocaleString('vi-VN')}_`;
+
+          await sendMessage(chatId, msg, {
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: "🔙 Quay lại API Keys", callback_data: "cmd_apikeys" }],
+                [{ text: "🏠 Menu chính", callback_data: "cmd_menu" }]
+              ]
+            }
+          });
+          return;
+        }
+
+        if (data === 'cmd_prompt_set_gemini') {
+          await sendMessage(chatId,
+            '🔑 *ĐỔI GEMINI API KEY*\n' +
+            '━━━━━━━━━━━━━━━━━━━━━━\n\n' +
+            'Vui lòng *Reply* (Trả lời) tin nhắn này với Gemini API Key mới:\n\n' +
+            '⚠️ _Key mới chỉ có hiệu lực trong phiên chạy hiện tại._\n' +
+            '_Để lưu vĩnh viễn, hãy cập nhật biến môi trường `GEMINI_API_KEY`._',
+            { reply_markup: { force_reply: true, selective: true } }
+          );
+          return;
+        }
+
+        if (data === 'cmd_prompt_set_bottoken') {
+          await sendMessage(chatId,
+            '📱 *ĐỔI TELEGRAM BOT TOKEN*\n' +
+            '━━━━━━━━━━━━━━━━━━━━━━\n\n' +
+            '⚠️ *Lưu ý quan trọng:*\n' +
+            'Bot Token chỉ có thể thay đổi vĩnh viễn trong file `.env`.\n\n' +
+            'Biến cần cập nhật:\n`TELEGRAM_BOT_TOKEN=<token_mới>`\n\n' +
+            '_Sau khi cập nhật .env, khởi động lại server để áp dụng._',
+            { reply_markup: { inline_keyboard: [[{ text: "🔙 Quay lại", callback_data: "cmd_apikeys" }]] } }
+          );
+          return;
+        }
+
+        if (data === 'cmd_prompt_set_chatid') {
+          await sendMessage(chatId,
+            '🆔 *ĐỔI TELEGRAM CHAT ID*\n' +
+            '━━━━━━━━━━━━━━━━━━━━━━\n\n' +
+            '⚠️ *Lưu ý quan trọng:*\n' +
+            'Chat ID chỉ có thể thay đổi vĩnh viễn trong file `.env`.\n\n' +
+            'Biến cần cập nhật:\n`TELEGRAM_CHAT_ID=<chat_id_mới>`\n\n' +
+            '_Chat ID của bạn là:_ `' + ADMIN_CHAT_ID + '`\n' +
+            '_Nếu muốn lấy Chat ID mới, hãy nhắn /getid cho bot._',
+            { reply_markup: { inline_keyboard: [[{ text: "🔙 Quay lại", callback_data: "cmd_apikeys" }]] } }
           );
           return;
         }
@@ -586,6 +793,14 @@ Hãy trả về một đối tượng JSON hợp lệ duy nhất, KHÔNG ĐƯỢ
                   createdAt: FieldValue.serverTimestamp(),
                   read: false
                 });
+                await tgSend('editMessageReplyMarkup', { chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: [] } });
+                await sendMessage(chatId,
+                  `✅ *DUYỆT THÀNH CÔNG*\n` +
+                  `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                  `👤 *Người dùng:* ${txData.userEmail}\n` +
+                  `💰 *Đã cộng:* ${Number(txData.amount || 0).toLocaleString()} Coin\n` +
+                  `🔖 *Mã GD:* \`${txId}\``
+                );
               } else {
                 const date = new Date();
                 date.setDate(date.getDate() + Number(txData.days || 30));
@@ -602,12 +817,18 @@ Hãy trả về một đối tượng JSON hợp lệ duy nhất, KHÔNG ĐƯỢ
                   createdAt: FieldValue.serverTimestamp(),
                   read: false
                 });
+                await tgSend('editMessageReplyMarkup', { chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: [] } });
+                await sendMessage(chatId,
+                  `✅ *DUYỆT THÀNH CÔNG*\n` +
+                  `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                  `👤 *Người dùng:* ${txData.userEmail}\n` +
+                  `📦 *Gói đã cấp:* ${(txData.packageKey || 'pro').toUpperCase()}\n` +
+                  `⏳ *Hạn đến:* ${date.toLocaleDateString('vi-VN')}\n` +
+                  `🔖 *Mã GD:* \`${txId}\``
+                );
               }
-
-              await tgSend('editMessageReplyMarkup', { chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: [] } });
-              await sendMessage(chatId, `✅ Đã duyệt thành công giao dịch cho *${txData.userEmail}*\nMã: \`${txId}\``);
             } else {
-              await sendMessage(chatId, `⚠️ Giao dịch \`${txId}\` đã được xử lý trước đó.`);
+              await sendMessage(chatId, `⚠️ Giao dịch \`${txId}\` đã được xử lý trước đó (trạng thái: ${txData.status}).`);
             }
           }
           return;
@@ -633,7 +854,13 @@ Hãy trả về một đối tượng JSON hợp lệ duy nhất, KHÔNG ĐƯỢ
             });
           }
           await tgSend('editMessageReplyMarkup', { chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: [] } });
-          await sendMessage(chatId, `❌ Đã từ chối giao dịch của *${userEmail}*\nMã: \`${txId}\``);
+          await sendMessage(chatId,
+            `❌ *ĐÃ TỪ CHỐI GIAO DỊCH*\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `👤 *Người dùng:* ${userEmail}\n` +
+            `🔖 *Mã GD:* \`${txId}\`\n\n` +
+            `_Đã gửi thông báo từ chối tới người dùng._`
+          );
           return;
         }
 
@@ -661,19 +888,32 @@ Hãy trả về một đối tượng JSON hợp lệ duy nhất, KHÔNG ĐƯỢ
           const userDoc = await db.collection('users').doc(userId).get();
           if (userDoc.exists) {
             const u = userDoc.data()!;
-            const exp = u.expiresAt ? new Date(u.expiresAt).toLocaleDateString('vi-VN') : 'Không có';
-            const msg = `👤 *THÔNG TIN NGƯỜI DÙNG*\n\n` +
-                        `📧 *Email:* ${u.email}\n` +
-                        `📛 *Tên:* ${u.displayName || 'Chưa cập nhật'}\n` +
-                        `📦 *Gói:* ${(u.package || 'FREE').toUpperCase()}\n` +
-                        `⏳ *Hạn sử dụng:* ${exp}\n` +
-                        `💰 *Coin:* ${Number(u.coins || 0).toLocaleString()}\n` +
-                        `🔑 *UID:* \`${userDoc.id}\``;
+            const exp = u.expiresAt ? new Date(u.expiresAt).toLocaleDateString('vi-VN') : 'Không giới hạn';
+            const pkgEmoji = u.package === 'enterprise' ? '🏢' : u.package === 'pro' ? '⚡' : u.package === 'admin' ? '🛡' : '🆓';
+            const msg =
+              `👤 *HỒ SƠ NGƯỜI DÙNG*\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+              `📛 *Tên:* ${u.displayName || u.name || 'Chưa cập nhật'}\n` +
+              `📧 *Email:* ${u.email || '—'}\n` +
+              `📞 *SĐT:* ${u.phone || '—'}\n` +
+              `🏫 *Đơn vị:* ${u.workplace || '—'}\n\n` +
+              `${pkgEmoji} *Gói:* ${(u.package || 'FREE').toUpperCase()}\n` +
+              `⏳ *Hạn sử dụng:* ${exp}\n` +
+              `💰 *Coin:* ${Number(u.coins || 0).toLocaleString()}\n\n` +
+              `🔑 *UID:* \`${userDoc.id}\``;
             await sendMessage(chatId, msg, {
-              reply_markup: { inline_keyboard: [[{ text: "🔙 Menu chính", callback_data: "cmd_menu" }]] }
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    { text: "💰 Tặng Coin", callback_data: "cmd_prompt_addcoin" },
+                    { text: "📦 Cấp Gói", callback_data: "cmd_prompt_setpkg" }
+                  ],
+                  [{ text: "🔙 Menu chính", callback_data: "cmd_menu" }]
+                ]
+              }
             });
           } else {
-            await sendMessage(chatId, `❌ Không tìm thấy người dùng.`);
+            await sendMessage(chatId, `❌ Không tìm thấy người dùng với UID: \`${userId}\``);
           }
           return;
         }
@@ -703,26 +943,36 @@ Hãy trả về một đối tượng JSON hợp lệ duy nhất, KHÔNG ĐƯỢ
             const email = text;
             const q = await db.collection('users').where('email', '==', email).get();
             if (q.empty) {
-              await sendMessage(chatId, '❌ *Không tìm thấy người dùng!*\nVui lòng kiểm tra lại địa chỉ email.');
+              await sendMessage(chatId,
+                `❌ *Không tìm thấy người dùng!*\n\n` +
+                `Email \`${email}\` không tồn tại trong hệ thống.\n` +
+                `Vui lòng kiểm tra lại chính tả.`
+              );
             } else {
-              const doc = q.docs[0];
-              const u = doc.data();
-              const exp = u.expiresAt ? new Date(u.expiresAt).toLocaleDateString('vi-VN') : 'Không có';
-              const msg = `👤 *THÔNG TIN NGƯỜI DÙNG*\n\n` +
-                          `📧 *Email:* ${u.email}\n` +
-                          `📛 *Tên:* ${u.displayName || 'Chưa cập nhật'}\n` +
-                          `📦 *Gói hiện tại:* ${(u.package || 'FREE').toUpperCase()}\n` +
-                          `⏳ *Hạn sử dụng:* ${exp}\n` +
-                          `💰 *Số dư Coin:* ${Number(u.coins || 0).toLocaleString()} Coin\n` +
-                          `🔑 *ID:* \`${doc.id}\``;
+              const docRef = q.docs[0];
+              const u = docRef.data();
+              const exp = u.expiresAt ? new Date(u.expiresAt).toLocaleDateString('vi-VN') : 'Không giới hạn';
+              const pkgEmoji = u.package === 'enterprise' ? '🏢' : u.package === 'pro' ? '⚡' : u.package === 'admin' ? '🛡' : '🆓';
+              const msg =
+                `👤 *HỒ SƠ NGƯỜI DÙNG*\n` +
+                `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                `📛 *Tên:* ${u.displayName || u.name || 'Chưa cập nhật'}\n` +
+                `📧 *Email:* ${u.email || '—'}\n` +
+                `📞 *SĐT:* ${u.phone || '—'}\n` +
+                `🏫 *Đơn vị:* ${u.workplace || '—'}\n\n` +
+                `${pkgEmoji} *Gói:* ${(u.package || 'FREE').toUpperCase()}\n` +
+                `⏳ *Hạn sử dụng:* ${exp}\n` +
+                `💰 *Coin:* ${Number(u.coins || 0).toLocaleString()}\n\n` +
+                `🔑 *UID:* \`${docRef.id}\``;
               await sendMessage(chatId, msg, {
                 reply_markup: {
-                  inline_keyboard: [[
-                    { text: "💰 Tặng Coin", callback_data: "cmd_prompt_addcoin" },
-                    { text: "📦 Cấp Gói", callback_data: "cmd_prompt_setpkg" }
-                  ], [
-                    { text: "🔙 Menu chính", callback_data: "cmd_menu" }
-                  ]]
+                  inline_keyboard: [
+                    [
+                      { text: "💰 Tặng Coin", callback_data: "cmd_prompt_addcoin" },
+                      { text: "📦 Cấp Gói", callback_data: "cmd_prompt_setpkg" }
+                    ],
+                    [{ text: "🔙 Menu chính", callback_data: "cmd_menu" }]
+                  ]
                 }
               });
             }
@@ -750,13 +1000,23 @@ Hãy trả về một đối tượng JSON hợp lệ duy nhất, KHÔNG ĐƯỢ
                   createdAt: FieldValue.serverTimestamp(),
                   read: false
                 });
-                await sendMessage(chatId, `✅ *THÀNH CÔNG*\n\nĐã cộng *${amount.toLocaleString()} Coin* cho tài khoản \`${email}\`.`,
-                  { reply_markup: { inline_keyboard: [[{ text: "🔙 Menu chính", callback_data: "cmd_menu" }]] } });
+                await sendMessage(chatId,
+                  `✅ *TẶNG COIN THÀNH CÔNG*\n` +
+                  `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                  `💰 *Đã cộng:* ${amount.toLocaleString()} Coin\n` +
+                  `👤 *Tài khoản:* \`${email}\`\n\n` +
+                  `_Người dùng đã nhận được thông báo._`,
+                  { reply_markup: { inline_keyboard: [[{ text: "🔙 Menu chính", callback_data: "cmd_menu" }]] } }
+                );
               } else {
-                await sendMessage(chatId, '❌ *Không tìm thấy người dùng!*');
+                await sendMessage(chatId, `❌ *Không tìm thấy người dùng!*\nEmail \`${email}\` không tồn tại trong hệ thống.`);
               }
             } else {
-              await sendMessage(chatId, '❌ *Cú pháp không hợp lệ!*\nVui lòng nhập: `<Email> <Số_Coin>`');
+              await sendMessage(chatId,
+                `❌ *Cú pháp không hợp lệ!*\n\n` +
+                `Đúng cú pháp:\n\`<Email> <Số_Coin>\`\n\n` +
+                `Ví dụ: \`giaovien@school.edu.vn 50000\``
+              );
             }
             return;
           }
@@ -771,21 +1031,33 @@ Hãy trả về một đối tượng JSON hợp lệ duy nhất, KHÔNG ĐƯỢ
                 const validity = pkg === 'pro' ? 30 : pkg === 'enterprise' ? 365 : 0;
                 const newExp = new Date(Date.now() + validity * 24 * 60 * 60 * 1000);
                 await q.docs[0].ref.update({ package: pkg, expiresAt: newExp.toISOString() });
+                const pkgEmoji = pkg === 'enterprise' ? '🏢' : pkg === 'pro' ? '⚡' : '🆓';
                 await db.collection('notifications').add({
                   userId: q.docs[0].id,
                   type: 'system',
                   title: 'Gói tài khoản đã được cập nhật!',
-                  message: `Admin đã cấp gói *${pkg.toUpperCase()}* cho tài khoản của bạn. Hạn sử dụng đến ${newExp.toLocaleDateString('vi-VN')}.`,
+                  message: `Admin đã cấp gói ${pkg.toUpperCase()} cho tài khoản của bạn. Hạn sử dụng đến ${newExp.toLocaleDateString('vi-VN')}.`,
                   createdAt: FieldValue.serverTimestamp(),
                   read: false
                 });
-                await sendMessage(chatId, `✅ *THÀNH CÔNG*\n\nĐã cập nhật gói *${pkg.toUpperCase()}* cho tài khoản \`${email}\`.`,
-                  { reply_markup: { inline_keyboard: [[{ text: "🔙 Menu chính", callback_data: "cmd_menu" }]] } });
+                await sendMessage(chatId,
+                  `✅ *CẤP GÓI THÀNH CÔNG*\n` +
+                  `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                  `${pkgEmoji} *Gói mới:* ${pkg.toUpperCase()}\n` +
+                  `👤 *Tài khoản:* \`${email}\`\n` +
+                  `⏳ *Hạn đến:* ${validity > 0 ? newExp.toLocaleDateString('vi-VN') : 'Không giới hạn'}\n\n` +
+                  `_Người dùng đã nhận được thông báo._`,
+                  { reply_markup: { inline_keyboard: [[{ text: "🔙 Menu chính", callback_data: "cmd_menu" }]] } }
+                );
               } else {
-                await sendMessage(chatId, '❌ *Không tìm thấy người dùng!*');
+                await sendMessage(chatId, `❌ *Không tìm thấy người dùng!*\nEmail \`${email}\` không tồn tại.`);
               }
             } else {
-              await sendMessage(chatId, '❌ *Cú pháp không hợp lệ!*\nVui lòng nhập: `<Email> <pro|enterprise|free>`');
+              await sendMessage(chatId,
+                `❌ *Cú pháp không hợp lệ!*\n\n` +
+                `Đúng cú pháp:\n\`<Email> <pro|enterprise|free>\`\n\n` +
+                `Ví dụ: \`giaovien@school.edu.vn pro\``
+              );
             }
             return;
           }
@@ -798,18 +1070,28 @@ Hãy trả về một đối tượng JSON hợp lệ duy nhất, KHÔNG ĐƯỢ
             } else if (['pro', 'enterprise', 'free'].includes(filter)) {
               q = await db.collection('users').where('package', '==', filter).limit(10).get();
             } else {
-              await sendMessage(chatId, '❌ *Lọc không hợp lệ.* Nhập: pro, enterprise, free hoặc all');
+              await sendMessage(chatId,
+                `❌ *Bộ lọc không hợp lệ.*\n\n` +
+                `Nhập một trong: \`pro\`, \`enterprise\`, \`free\`, \`all\``
+              );
               return;
             }
 
             if (q.empty) {
-              await sendMessage(chatId, `📭 Không có người dùng nào với gói *${filter}*.`);
+              await sendMessage(chatId, `📭 Không có người dùng nào với gói *${filter.toUpperCase()}*.`);
             } else {
-              let list = `👥 *Danh sách người dùng (${filter.toUpperCase()}) — ${q.size} người:*\n\n`;
+              const pkgLabel = filter === 'all' ? 'TẤT CẢ' : filter.toUpperCase();
+              let list =
+                `👥 *DANH SÁCH NGƯỜI DÙNG — ${pkgLabel}*\n` +
+                `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `_Hiển thị tối đa 10 người:_\n\n`;
               q.docs.forEach((d, i) => {
                 const u = d.data();
-                list += `${i + 1}. *${u.displayName || 'N/A'}* — ${u.email} — ${(u.package || 'free').toUpperCase()}\n`;
+                const pkgEmoji = u.package === 'enterprise' ? '🏢' : u.package === 'pro' ? '⚡' : u.package === 'admin' ? '🛡' : '🆓';
+                list += `${i + 1}. ${pkgEmoji} *${u.name || u.displayName || 'N/A'}*\n` +
+                        `    📧 ${u.email}\n`;
               });
+              list += `\n_Tổng: ${q.size} tài khoản_`;
               await sendMessage(chatId, list, {
                 reply_markup: { inline_keyboard: [[{ text: "🔙 Menu chính", callback_data: "cmd_menu" }]] }
               });
@@ -820,7 +1102,6 @@ Hãy trả về một đối tượng JSON hợp lệ duy nhất, KHÔNG ĐƯỢ
           if (prompt.includes('BROADCAST')) {
             const broadcastText = text;
             const allUsersSnap = await db.collection('users').get();
-            let count = 0;
             const batch = db.batch();
             for (const userDoc of allUsersSnap.docs) {
               const notifRef = db.collection('notifications').doc();
@@ -832,13 +1113,56 @@ Hãy trả về một đối tượng JSON hợp lệ duy nhất, KHÔNG ĐƯỢ
                 createdAt: FieldValue.serverTimestamp(),
                 read: false
               });
-              count++;
             }
             await batch.commit();
             await sendMessage(chatId,
-              `📢 *BROADCAST THÀNH CÔNG!*\n\nĐã gửi thông báo tới *${count} người dùng*.\n\n📝 Nội dung:\n_${broadcastText}_`,
+              `📢 *BROADCAST THÀNH CÔNG!*\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+              `✅ Đã gửi tới *${allUsersSnap.size} người dùng*\n\n` +
+              `📝 *Nội dung đã gửi:*\n_${broadcastText}_`,
               { reply_markup: { inline_keyboard: [[{ text: "🔙 Menu chính", callback_data: "cmd_menu" }]] } }
             );
+            return;
+          }
+
+          if (prompt.includes('ĐỔI GEMINI API KEY')) {
+            const newKey = text.trim();
+            if (newKey.length < 20) {
+              await sendMessage(chatId,
+                `❌ *Key không hợp lệ!*\n\n` +
+                `Gemini API Key thường có độ dài >= 30 ký tự.\n` +
+                `Vui lòng kiểm tra lại key từ Google AI Studio.`
+              );
+              return;
+            }
+            // Test the new key before applying
+            let testResult = '';
+            try {
+              const testRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${newKey}`);
+              if (testRes.ok) {
+                runtimeGeminiKey = newKey;
+                const masked = `${newKey.slice(0, 6)}${'*'.repeat(newKey.length - 10)}${newKey.slice(-4)}`;
+                await sendMessage(chatId,
+                  `✅ *ĐỔI GEMINI KEY THÀNH CÔNG!*\n` +
+                  `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                  `🔑 *Key mới:* \`${masked}\`\n` +
+                  `🟢 *Trạng thái:* Đã xác minh & đang hoạt động\n\n` +
+                  `⚠️ _Key có hiệu lực ngay lập tức trong phiên chạy hiện tại._\n` +
+                  `_Để lưu vĩnh viễn: cập nhật \`GEMINI_API_KEY\` trong .env_`,
+                  { reply_markup: { inline_keyboard: [[{ text: "⚙️ Quản lý API Keys", callback_data: "cmd_apikeys" }], [{ text: "🔙 Menu chính", callback_data: "cmd_menu" }]] } }
+                );
+              } else {
+                testResult = `HTTP ${testRes.status}`;
+                throw new Error(testResult);
+              }
+            } catch (e: any) {
+              await sendMessage(chatId,
+                `❌ *KEY KHÔNG HỢP LỆ!*\n\n` +
+                `Lỗi khi kiểm tra key: ${e.message || 'Không kết nối được'}\n\n` +
+                `_Key chưa được áp dụng. Vui lòng kiểm tra lại._`,
+                { reply_markup: { inline_keyboard: [[{ text: "🔙 Quay lại API Keys", callback_data: "cmd_apikeys" }]] } }
+              );
+            }
             return;
           }
         }
@@ -846,12 +1170,19 @@ Hãy trả về một đối tượng JSON hợp lệ duy nhất, KHÔNG ĐƯỢ
         // Normal Commands
         if (text === '/menu' || text === '/start') {
           await sendMainMenu(chatId);
+        } else if (text === '/getid') {
+          await sendMessage(chatId,
+            `🆔 *Chat ID của bạn:*\n\`${chatId}\`\n\n` +
+            `_Dùng giá trị này để cấu hình \`TELEGRAM_CHAT_ID\` trong .env_`
+          );
         } else if (text === '/stats') {
-          // Trigger stats via text command
           const fakeQuery = { callback_query: { data: 'cmd_stats', message: { chat: { id: chatId }, message_id: 0 }, id: '' } };
           await processUpdate(fakeQuery);
         } else if (text === '/pending') {
           const fakeQuery = { callback_query: { data: 'cmd_pending', message: { chat: { id: chatId }, message_id: 0 }, id: '' } };
+          await processUpdate(fakeQuery);
+        } else if (text === '/apikeys') {
+          const fakeQuery = { callback_query: { data: 'cmd_apikeys', message: { chat: { id: chatId }, message_id: 0 }, id: '' } };
           await processUpdate(fakeQuery);
         } else {
           // Unknown text — show menu
