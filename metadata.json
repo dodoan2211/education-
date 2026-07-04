@@ -1,0 +1,6 @@
+{
+  "name": "EduCreate AI",
+  "description": "Nền tảng tạo tài nguyên giáo dục bằng AI: Soạn giáo án, STEM, Arduino, AI Assistant và Video giảng dạy dành cho giáo viên.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

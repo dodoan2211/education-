@@ -1,0 +1,234 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "workplace": { "type": "string" },
+        "package": { "type": "string" },
+        "expiresAt": { "type": "string" },
+        "usageCount": { "type": "integer" },
+        "hideEmail": { "type": "boolean" },
+        "hidePhone": { "type": "boolean" }
+      }
+    },
+    "Resource": {
+      "title": "Resource",
+      "description": "Generated content",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "type": { "type": "string" },
+        "content": { "type": "string" }
+      }
+    },
+    "Consignment": {
+      "title": "Consignment",
+      "description": "Consigned document listed in store",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "teacherName": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "type": { "type": "string" },
+        "price": { "type": "integer" },
+        "createdAt": { "type": "string" }
+      }
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "Real-time user alert",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "type": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "read": { "type": "boolean" },
+        "fromUserId": { "type": "string" },
+        "fromUserName": { "type": "string" },
+        "postId": { "type": "string" },
+        "commentId": { "type": "string" },
+        "amount": { "type": "integer" },
+        "docName": { "type": "string" }
+      }
+    },
+    "Competition": {
+      "title": "Competition",
+      "description": "Professional contest created by Admin",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "rules": { "type": "string" },
+        "type": { "type": "string" },
+        "date": { "type": "string" },
+        "createdAt": { "type": "string" }
+      }
+    },
+    "Submission": {
+      "title": "Submission",
+      "description": "Competition entry submitted by a teacher",
+      "type": "object",
+      "properties": {
+        "competitionId": { "type": "string" },
+        "competitionTitle": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "resourceId": { "type": "string" },
+        "resourceTitle": { "type": "string" },
+        "resourceContent": { "type": "string" },
+        "submittedAt": { "type": "string" },
+        "grade": { "type": "string" },
+        "comment": { "type": "string" }
+      }
+    },
+    "Post": {
+      "title": "Post",
+      "description": "Community feed post",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userAvatar": { "type": "string" },
+        "userPackage": { "type": "string" },
+        "content": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "likes": { "type": "array" },
+        "loves": { "type": "array" },
+        "commentsCount": { "type": "integer" },
+        "createdAt": { "type": "string" }
+      }
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "Comment on a post",
+      "type": "object",
+      "properties": {
+        "postId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userAvatar": { "type": "string" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "parentId": { "type": "string" },
+        "replyToName": { "type": "string" }
+      }
+    },
+    "Conversation": {
+      "title": "Conversation",
+      "description": "Direct message thread",
+      "type": "object",
+      "properties": {
+        "participants": { "type": "array" },
+        "participantNames": { "type": "array" },
+        "lastMessage": { "type": "string" },
+        "lastSenderId": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Chat message inside a thread",
+      "type": "object",
+      "properties": {
+        "conversationId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "senderAvatar": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "read": { "type": "boolean" }
+      }
+    },
+    "Follow": {
+      "title": "Follow",
+      "description": "User following relationship",
+      "type": "object",
+      "properties": {
+        "followerId": { "type": "string" },
+        "followingId": { "type": "string" },
+        "createdAt": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": { "$ref": "User" },
+      "description": "User data"
+    },
+    "resources/{resourceId}": {
+      "schema": { "$ref": "Resource" },
+      "description": "User generated resources"
+    },
+    "consignments/{consignmentId}": {
+      "schema": { "$ref": "Consignment" },
+      "description": "Consigned store documents"
+    },
+    "notifications/{notificationId}": {
+      "schema": { "$ref": "Notification" },
+      "description": "Real-time notification system"
+    },
+    "competitions/{competitionId}": {
+      "schema": { "$ref": "Competition" },
+      "description": "Admin created contests"
+    },
+    "submissions/{submissionId}": {
+      "schema": { "$ref": "Submission" },
+      "description": "Contest submissions"
+    },
+    "posts/{postId}": {
+      "schema": { "$ref": "Post" },
+      "description": "Community posts"
+    },
+    "comments/{commentId}": {
+      "schema": { "$ref": "Comment" },
+      "description": "Post comments"
+    },
+    "conversations/{conversationId}": {
+      "schema": { "$ref": "Conversation" },
+      "description": "Direct chat conversation"
+    },
+    "messages/{messageId}": {
+      "schema": { "$ref": "Message" },
+      "description": "Real-time chat messages"
+    },
+    "follows/{followId}": {
+      "schema": { "$ref": "Follow" },
+      "description": "User following relationships"
+    }
+  },
+  "indexes": [
+    {
+      "collectionGroup": "posts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "follows",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "followerId", "order": "ASCENDING" },
+        { "fieldPath": "followingId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "notifications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    }
+  ]
+}
