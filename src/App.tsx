@@ -7,7 +7,6 @@ import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import ToolArea from "./pages/ToolArea";
-import PlanAccessGuard from "./components/PlanAccessGuard";
 import Competitions from "./pages/Competitions";
 import Profile from "./pages/Profile";
 import Admin from "./pages/Admin";
@@ -91,25 +90,21 @@ export default function App() {
                   </PrivateRoute>
                 } 
               />
-              <Route 
-                path="/tool/:type" 
+              <Route
+                path="/tool/:type"
                 element={
                   <PrivateRoute>
-                    <PlanAccessGuard>
-                      <ToolArea />
-                    </PlanAccessGuard>
+                    <ToolArea />
                   </PrivateRoute>
-                } 
+                }
               />
-              <Route 
-                path="/infographic-maker" 
+              <Route
+                path="/infographic-maker"
                 element={
                   <PrivateRoute>
-                    <PlanAccessGuard>
-                      <InfographicMaker />
-                    </PlanAccessGuard>
+                    <InfographicMaker />
                   </PrivateRoute>
-                } 
+                }
               />
               <Route 
                 path="/competitions" 
