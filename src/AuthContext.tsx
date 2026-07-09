@@ -42,13 +42,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 currentPackage = "free";
               }
               
-              const profileData = {
-                id: docSnap.id,
+              const profileData = { 
+                id: docSnap.id, 
                 ...data,
                 package: currentPackage,
                 expiresAt: expiresAt,
-                usageCount: data.usageCount || 0,
-                geminiApiKey: data.geminiApiKey || ""
+                usageCount: data.usageCount || 0
               };
               setUserProfile(profileData);
               setIsAdmin(checkIsAdmin(firebaseUser as any, profileData));
