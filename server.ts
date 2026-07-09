@@ -112,8 +112,8 @@ async function startServer() {
   // ---------- AI Route ----------
   app.post("/api/generate", async (req, res) => {
     try {
-      const { prompt, type } = req.body;
-      const apiKey = runtimeGeminiKey || process.env.GEMINI_API_KEY;
+      const { prompt, type, apiKey: userApiKey } = req.body;
+      const apiKey = userApiKey || runtimeGeminiKey || process.env.GEMINI_API_KEY;
       if (!apiKey) {
         return res.status(500).json({ error: "GEMINI_API_KEY is not set" });
       }

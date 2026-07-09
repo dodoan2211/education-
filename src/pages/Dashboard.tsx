@@ -1,16 +1,16 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import Layout from "../components/Layout";
-import { 
-  BookOpen, 
-  Calendar, 
-  MonitorPlay, 
-  Presentation, 
-  Clock, 
-  ArrowRight, 
-  FileText, 
-  AlertTriangle, 
-  RefreshCw, 
+import {
+  BookOpen,
+  Calendar,
+  MonitorPlay,
+  Presentation,
+  Clock,
+  ArrowRight,
+  FileText,
+  AlertTriangle,
+  RefreshCw,
   HelpCircle,
   ChevronDown,
   Settings,
@@ -28,7 +28,8 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
-  FileEdit
+  FileEdit,
+  Heart
 } from "lucide-react";
 import { useAuth } from "../AuthContext";
 import { useToast } from "../context/ToastContext";
@@ -469,6 +470,24 @@ export default function Dashboard() {
               <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Kế hoạch giảng dạy</p>
               <h3 className="text-2xl font-bold text-slate-900 mt-0.5">{stats.plans}</h3>
             </div>
+          </div>
+        </div>
+
+        {/* Donate Banner */}
+        <div className="bg-rose-50 border border-rose-100 rounded-xl p-5 flex flex-col sm:flex-row items-center gap-5 shadow-sm">
+          <img
+            src={`https://img.vietqr.io/image/MB-9666989889-compact2.png?amount=50000&addInfo=${encodeURIComponent("DONATE EDUCREATE")}&accountName=${encodeURIComponent("DO VAN DOAN")}`}
+            alt="Donate QR"
+            className="w-24 h-24 object-contain rounded-xl border border-rose-100 shrink-0"
+          />
+          <div className="flex-1 text-center sm:text-left">
+            <h3 className="font-bold text-rose-700 text-base flex items-center justify-center sm:justify-start gap-2">
+              <Heart className="w-4 h-4 fill-rose-500" /> Ủng hộ EduCreate
+            </h3>
+            <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+              EduCreate hoàn toàn miễn phí cho tất cả giáo viên. Nếu thấy hữu ích, thầy cô có thể ủng hộ nhóm phát triển để duy trì và cải thiện dịch vụ.
+            </p>
+            <p className="text-xs text-rose-600 font-semibold mt-2">MB BANK · 9666989889 · DO VAN DOAN</p>
           </div>
         </div>
 
