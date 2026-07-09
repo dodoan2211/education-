@@ -7,35 +7,19 @@ import { BookOpen, Calendar, MonitorPlay, Presentation, LogOut, Home, Bell, Sear
 import NotificationsPanel from "./NotificationsPanel";
 import { AnimatePresence, motion } from "motion/react";
 
-function DonateQRCompact() {
-  const qrUrl = `https://img.vietqr.io/image/MB-9666989889-compact2.png?amount=50000&addInfo=${encodeURIComponent("DONATE EDUCREATE")}&accountName=${encodeURIComponent("DO VAN DOAN")}`;
-  return (
-    <div className="flex flex-col items-center gap-1.5">
-      <img src={qrUrl} alt="Donate QR" className="w-28 h-28 object-contain rounded-xl border border-rose-100" />
-      <p className="text-[10px] text-rose-600 font-semibold">Ủng hộ EduCreate</p>
-      <p className="text-[9px] text-slate-400 text-center leading-tight">MB BANK · 9666989889<br/>DO VAN DOAN</p>
-    </div>
-  );
-}
-
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, userProfile, isAdmin } = useAuth();
   const location = useLocation();
   const [unreadCount, setUnreadCount] = useState(0);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
-  const [showDonatePanel, setShowDonatePanel] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const notificationRef = useRef<HTMLDivElement>(null);
-  const donateRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
         setShowNotifications(false);
-      }
-      if (donateRef.current && !donateRef.current.contains(event.target as Node)) {
-        setShowDonatePanel(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -67,6 +51,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { name: "Chuyển Đổi Số", path: "/tool/digital", icon: <MonitorPlay className="w-5 h-5" /> },
     { name: "AI Video", path: "/tool/video", icon: <Presentation className="w-5 h-5" /> },
     { name: "Tạo Infographic", path: "/infographic-maker", icon: <Image className="w-5 h-5" /> },
+    { name: "Ủng hộ", path: "/donate", icon: <Heart className="w-5 h-5" /> },
   ];
   if (isAdmin) navItems.push({ name: "Admin", path: "/admin", icon: <Shield className="w-5 h-5" /> });
 
@@ -94,28 +79,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <Link to="/" className="text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors hidden sm:block">Trang chủ</Link>
 
           {/* Donate button */}
-          <div className="relative" ref={donateRef}>
-            <button
-              onClick={() => setShowDonatePanel(!showDonatePanel)}
-              title="Ủng hộ dự án"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-50 border border-rose-100 text-rose-600 hover:bg-rose-100 transition-colors text-xs font-bold cursor-pointer"
-            >
-              <Heart className="h-3.5 w-3.5 fill-rose-500" /> Donate
-            </button>
-
-            <AnimatePresence>
-              {showDonatePanel && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                  className="absolute top-full right-0 mt-3 bg-white rounded-2xl shadow-2xl border border-slate-200 z-[70] p-5"
-                >
-                  <DonateQRCompact />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+          <Link
+            to="/donate"
+            title="Ủng hộ dự án"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-50 border border-rose-100 text-rose-600 hover:bg-rose-100 transition-colors text-xs font-bold"
+          >
+            <Heart className="h-3.5 w-3.5 fill-rose-500" /> Donate
+          </Link>
 
           <div className="h-8 w-px bg-slate-200 mx-2 hidden sm:block"></div>
 
@@ -175,9 +145,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <nav className="space-y-1 overflow-y-auto flex-1 pr-1 custom-scrollbar">
               {navItems.map((item) => {
                 const isActive = location.pathname === item.path;
+                const isDonate = item.path === "/donate";
                 return (
-                  <Link key={item.path} to={item.path} className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${isActive ? "bg-blue-50 text-blue-700 font-semibold" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`}>
-                    <div className={`${isActive ? 'text-blue-600' : 'text-slate-400'}`}>{item.icon}</div>
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                      isActive
+                        ? isDonate ? "bg-rose-50 text-rose-700 font-semibold" : "bg-blue-50 text-blue-700 font-semibold"
+                        : isDonate ? "text-rose-500 hover:bg-rose-50 hover:text-rose-700" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <div className={`${isActive ? (isDonate ? 'text-rose-600' : 'text-blue-600') : isDonate ? 'text-rose-400' : 'text-slate-400'}`}>{item.icon}</div>
                     {item.name}
                   </Link>
                 );
@@ -186,10 +165,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="p-4 border-t border-slate-200 shrink-0">
-            {/* Donate QR in sidebar */}
-            <div className="mb-3 p-3 bg-rose-50 rounded-xl border border-rose-100 flex flex-col items-center gap-2">
-              <DonateQRCompact />
-            </div>
             <button onClick={() => setShowHelpModal(true)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors text-left cursor-pointer mb-1">
               <HelpCircle className="w-5 h-5 text-slate-400" /> <span>Hướng dẫn sử dụng</span>
             </button>
@@ -266,12 +241,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </div>
 
                 <div className="flex gap-4 items-start p-3 hover:bg-slate-50 rounded-xl transition-colors">
-                  <div className="w-10 h-10 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center shrink-0 shadow-sm">
+                  <div className="w-10 h-10 bg-slate-50 text-slate-600 rounded-xl flex items-center justify-center shrink-0 shadow-sm">
                     <Sparkles className="w-5 h-5" />
                   </div>
                   <div>
                     <h4 className="font-semibold text-slate-950 text-sm mb-1">Bước 3: Chạy Luồng Phân Tích AI</h4>
-                    <p className="text-xs text-slate-600 leading-relaxed">Nhấn nút <strong className="text-purple-700">"Chạy luồng xử lý AI"</strong>. Hệ thống AI sẽ lập tức thiết kế nội dung khoa học và tối ưu cấu trúc sư phạm.</p>
+                    <p className="text-xs text-slate-600 leading-relaxed">Nhấn nút <strong className="text-slate-800">"Chạy luồng xử lý AI"</strong>. Hệ thống AI sẽ lập tức thiết kế nội dung khoa học và tối ưu cấu trúc sư phạm.</p>
                   </div>
                 </div>
 

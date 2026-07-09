@@ -474,21 +474,24 @@ export default function Dashboard() {
         </div>
 
         {/* Donate Banner */}
-        <div className="bg-rose-50 border border-rose-100 rounded-xl p-5 flex flex-col sm:flex-row items-center gap-5 shadow-sm">
-          <img
-            src={`https://img.vietqr.io/image/MB-9666989889-compact2.png?amount=50000&addInfo=${encodeURIComponent("DONATE EDUCREATE")}&accountName=${encodeURIComponent("DO VAN DOAN")}`}
-            alt="Donate QR"
-            className="w-24 h-24 object-contain rounded-xl border border-rose-100 shrink-0"
-          />
-          <div className="flex-1 text-center sm:text-left">
-            <h3 className="font-bold text-rose-700 text-base flex items-center justify-center sm:justify-start gap-2">
-              <Heart className="w-4 h-4 fill-rose-500" /> Ủng hộ EduCreate
-            </h3>
-            <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-              EduCreate hoàn toàn miễn phí cho tất cả giáo viên. Nếu thấy hữu ích, thầy cô có thể ủng hộ nhóm phát triển để duy trì và cải thiện dịch vụ.
-            </p>
-            <p className="text-xs text-rose-600 font-semibold mt-2">MB BANK · 9666989889 · DO VAN DOAN</p>
+        <div className="bg-rose-50 border border-rose-100 rounded-xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-rose-100 rounded-lg flex items-center justify-center shrink-0">
+              <Heart className="w-5 h-5 text-rose-600 fill-rose-500" />
+            </div>
+            <div>
+              <h3 className="font-bold text-rose-700 text-sm">Ủng hộ EduCreate</h3>
+              <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
+                EduCreate hoàn toàn miễn phí. Nếu thấy hữu ích, thầy cô có thể ủng hộ để duy trì dịch vụ.
+              </p>
+            </div>
           </div>
+          <Link
+            to="/donate"
+            className="shrink-0 flex items-center gap-2 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm"
+          >
+            <Heart className="w-3.5 h-3.5 fill-white" /> Ủng hộ ngay
+          </Link>
         </div>
 
         {/* Main Tools Grid */}

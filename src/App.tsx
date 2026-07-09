@@ -14,6 +14,8 @@ import Templates from "./pages/Templates";
 import InfographicMaker from "./pages/InfographicMaker";
 import { useEffect } from "react";
 
+import Donate from "./pages/Donate";
+
 import SharedView from "./pages/SharedView";
 
 function PrivateRoute({ children, requireAdmin }: { children: React.ReactNode, requireAdmin?: boolean }) {
@@ -115,6 +117,14 @@ export default function App() {
                 } 
               />
               <Route path="/shared/:shareCode" element={<SharedView />} />
+              <Route
+                path="/donate"
+                element={
+                  <PrivateRoute>
+                    <Donate />
+                  </PrivateRoute>
+                }
+              />
               <Route 
                 path="/admin" 
                 element={
