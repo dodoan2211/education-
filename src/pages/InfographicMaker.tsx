@@ -6,6 +6,7 @@ import Layout from "../components/Layout";
 import { useAuth } from "../AuthContext";
 import { useToast } from "../context/ToastContext";
 import { cleanObject } from "../utils/textCleaner";
+import { generateWithKey } from "../utils/aiGenerate";
 
 export default function InfographicMaker() {
   const { userProfile } = useAuth();
@@ -61,21 +62,20 @@ export default function InfographicMaker() {
         }
       }
 
-      const res = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: finalPrompt,
-          type: "infographic",
-          apiKey: userProfile?.geminiApiKey || undefined
-        })
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to generate");
-
-      const responseText = data.text || data.result;
-      if (!responseText) throw new Error("AI không trả về kết quả.");
+      let responseText: string;
+      if (userProfile?.geminiApiKey) {
+        responseText = await generateWithKey(userProfile.geminiApiKey, "infographic", finalPrompt);
+      } else {
+        const res = await fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: finalPrompt, type: "infographic" })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to generate");
+        responseText = data.text || data.result;
+        if (!responseText) throw new Error("AI không trả về kết quả.");
+      }
 
       try {
         const cleanResult = responseText.replace(/```json/g, '').replace(/```/g, '').trim();

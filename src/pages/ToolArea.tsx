@@ -15,6 +15,7 @@ import {
   getDoc
 } from "firebase/firestore";
 import { useAuth } from "../AuthContext";
+import { generateWithKey } from "../utils/aiGenerate";
 
 const TOOL_CONFIG: Record<string, { title: string, placeholder: string }> = {
   lesson_plan: { title: "Soạn Giáo Án", placeholder: "Mô tả bài giảng, ví dụ: Giáo án Toán lớp 5, bài Diện tích hình tam giác..." },
@@ -168,25 +169,26 @@ export default function ToolArea() {
         }
       }
 
-      const res = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: finalPrompt,
-          type,
-          apiKey: userProfile?.geminiApiKey || undefined
-        })
-      });
-      const data = await res.json();
-      if (data.text) {
-        let cleanText = data.text;
-        cleanText = cleanText.replace(/\\/g, "");
-        setResult(cleanText);
-        setSaved(false);
+      let text: string;
+      if (userProfile?.geminiApiKey) {
+        text = await generateWithKey(userProfile.geminiApiKey, type || "", finalPrompt);
       } else {
-        const errMsg = data.error || "Không có phản hồi từ AI.";
-        setResult(`**Lỗi:** ${errMsg}\n\nVui lòng kiểm tra lại Gemini API Key trong Cài đặt tài khoản.`);
+        const res = await fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: finalPrompt, type })
+        });
+        const data = await res.json();
+        if (!data.text) {
+          const errMsg = data.error || "Không có phản hồi từ AI.";
+          setResult(`**Lỗi:** ${errMsg}\n\nVui lòng kiểm tra lại Gemini API Key trong Cài đặt tài khoản.`);
+          return;
+        }
+        text = data.text;
       }
+      const cleanText = text.replace(/\\/g, "");
+      setResult(cleanText);
+      setSaved(false);
     } catch (err: any) {
       setResult(`**Lỗi kết nối:** ${err?.message || "Không thể kết nối tới máy chủ."}`);
     } finally {
