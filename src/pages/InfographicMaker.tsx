@@ -30,6 +30,11 @@ export default function InfographicMaker() {
   const handleGenerate = async () => {
     if (!prompt && files.length === 0) return;
 
+    if (!userProfile?.geminiApiKey) {
+      toast.error("Chưa có Gemini API Key. Vui lòng vào Cài đặt để nhập key trước khi sử dụng AI.");
+      return;
+    }
+
     setLoading(true);
     setResult(null);
     setError(null);
@@ -165,6 +170,13 @@ export default function InfographicMaker() {
                   <><Send className="w-5 h-5" /> Tạo Infographic</>
                 )}
               </button>
+              {!userProfile?.geminiApiKey && (
+                <p className="text-xs text-amber-600 mt-3 font-medium bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-center">
+                  Chưa có API Key.{" "}
+                  <a href="/profile" className="underline font-bold hover:text-amber-800">Vào Cài đặt</a>{" "}
+                  để nhập Gemini API Key.
+                </p>
+              )}
             </div>
           </div>
         </div>

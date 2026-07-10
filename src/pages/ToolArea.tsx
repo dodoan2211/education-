@@ -97,6 +97,11 @@ export default function ToolArea() {
     if (!prompt.trim() && files.length === 0) return;
     if (!user) return;
 
+    if (!userProfile?.geminiApiKey) {
+      toast.error("Chưa có Gemini API Key. Vui lòng vào Cài đặt để nhập key trước khi sử dụng AI.");
+      return;
+    }
+
     if (type === "video") {
       setLoading(true);
       setResult("");
@@ -179,10 +184,11 @@ export default function ToolArea() {
         setResult(cleanText);
         setSaved(false);
       } else {
-        setResult("Đã có lỗi kết nối. Vui lòng thử lại sau.");
+        const errMsg = data.error || "Không có phản hồi từ AI.";
+        setResult(`**Lỗi:** ${errMsg}\n\nVui lòng kiểm tra lại Gemini API Key trong Cài đặt tài khoản.`);
       }
-    } catch (err) {
-      setResult("Lỗi máy chủ nội bộ. Vui lòng báo cáo với bộ phận IT.");
+    } catch (err: any) {
+      setResult(`**Lỗi kết nối:** ${err?.message || "Không thể kết nối tới máy chủ."}`);
     } finally {
       setLoading(false);
     }
@@ -540,6 +546,13 @@ export default function ToolArea() {
                   {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
                   {loading ? "Đang xử lý dữ liệu..." : "Chạy luồng xử lý AI"}
                 </button>
+                {!userProfile?.geminiApiKey && (
+                  <p className="text-center text-xs text-amber-600 mt-3 font-medium bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    Chưa có API Key.{" "}
+                    <a href="/profile" className="underline font-bold hover:text-amber-800">Vào Cài đặt</a>{" "}
+                    để nhập Gemini API Key.
+                  </p>
+                )}
              </div>
           </div>
 
