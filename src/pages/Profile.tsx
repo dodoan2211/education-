@@ -3,8 +3,11 @@ import Layout from "../components/Layout";
 import { useAuth } from "../AuthContext";
 import { db } from "../firebase";
 import { useToast } from "../context/ToastContext";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-import { ShieldCheck, UserCircle, Phone, MapPin, Mail, Loader2, CheckCircle2, ShieldAlert, Camera, Lock, KeyRound, Eye, EyeOff } from "lucide-react";
+import { doc, getDoc, updateDoc, setDoc, addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { ShieldCheck, UserCircle, Phone, MapPin, Mail, Loader2, CheckCircle2, ShieldAlert, Plus, Check, Info, Sparkles, BookOpen, Camera, Lock } from "lucide-react";
+import PaymentModal from "../components/PaymentModal";
+
+import PurchasedItems from "../components/PurchasedItems";
 
 export default function Profile() {
   const { user } = useAuth();
@@ -12,22 +15,30 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [verifyMessage, setVerifyMessage] = useState("");
   const [isLocked, setIsLocked] = useState(false);
-
+  
   const [profileData, setProfileData] = useState({
     name: "",
     email: "",
     phone: "",
     workplace: "",
     verified: false,
+    package: "free",
+    expiresAt: null as string | null,
     avatar: "",
     hideEmail: false,
     hidePhone: false,
   });
 
-  const [geminiApiKey, setGeminiApiKey] = useState("");
-  const [savingKey, setSavingKey] = useState(false);
-  const [showApiKey, setShowApiKey] = useState(false);
+  const [selectedPackage, setSelectedPackage] = useState<{
+    key: string;
+    label: string;
+    price: string;
+    days: number;
+  } | null>(null);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [showUpgradeOptions, setShowUpgradeOptions] = useState(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -43,19 +54,23 @@ export default function Profile() {
             phone: data.phone || "",
             workplace: data.workplace || "",
             verified: data.verified || false,
+            package: data.package || "free",
+            expiresAt: data.expiresAt || null,
             avatar: data.avatar || "",
             hideEmail: data.hideEmail || false,
             hidePhone: data.hidePhone || false,
           });
-          setGeminiApiKey(data.geminiApiKey || "");
           if (data.name && data.phone && data.workplace) {
             setIsLocked(true);
           }
         } else {
+          // If no doc exists (fallback), use Auth user data
           setProfileData((prev) => ({
             ...prev,
             name: user.displayName || "",
             email: user.email || "",
+            hideEmail: false,
+            hidePhone: false,
           }));
         }
       } catch (error) {
@@ -72,7 +87,7 @@ export default function Profile() {
     if (!file) return;
 
     if (file.size > 500 * 1024) {
-      toast.error("Dung lượng ảnh đại diện quá lớn (tối đa 500KB).");
+      toast.error("Dung lượng ảnh đại diện quá lớn (tối đa 500KB) để tối ưu hiển thị.");
       return;
     }
 
@@ -80,13 +95,20 @@ export default function Profile() {
     reader.onloadend = async () => {
       const base64String = reader.result as string;
       setProfileData(prev => ({ ...prev, avatar: base64String }));
-
+      
       if (user) {
         setSaving(true);
         try {
-          await setDoc(doc(db, "users", user.uid), { avatar: base64String }, { merge: true });
+          const docRef = doc(db, "users", user.uid);
+          await setDoc(docRef, {
+            avatar: base64String
+          }, { merge: true });
+          setMessage("Đã cập nhật ảnh đại diện thành công!");
           toast.success("Đã cập nhật ảnh đại diện thành công!");
+          setTimeout(() => setMessage(""), 3000);
         } catch (error) {
+          console.error("Lỗi cập nhật ảnh đại diện:", error);
+          setMessage("Có lỗi xảy ra khi lưu ảnh đại diện.");
           toast.error("Có lỗi xảy ra khi lưu ảnh đại diện.");
         } finally {
           setSaving(false);
@@ -101,9 +123,10 @@ export default function Profile() {
     if (!user) return;
     setSaving(true);
     setMessage("");
-
+    
     try {
-      await setDoc(doc(db, "users", user.uid), {
+      const docRef = doc(db, "users", user.uid);
+      await setDoc(docRef, {
         name: profileData.name,
         phone: profileData.phone,
         workplace: profileData.workplace,
@@ -115,6 +138,7 @@ export default function Profile() {
       }
       setTimeout(() => setMessage(""), 3000);
     } catch (error) {
+      console.error("Lỗi khi cập nhật hồ sơ:", error);
       setMessage("Có lỗi xảy ra khi cập nhật hồ sơ. Vui lòng thử lại.");
       toast.error("Có lỗi xảy ra khi cập nhật hồ sơ.");
     } finally {
@@ -122,28 +146,43 @@ export default function Profile() {
     }
   };
 
-  const handleSaveApiKey = async () => {
+  const handleVerifyRequest = async () => {
     if (!user) return;
-    setSavingKey(true);
+    setSaving(true);
+    setVerifyMessage("");
     try {
-      await setDoc(doc(db, "users", user.uid), { geminiApiKey: geminiApiKey.trim() }, { merge: true });
-      toast.success("Đã lưu Gemini API Key thành công!");
+      // In a real app, this might trigger an admin review workflow
+      // For demonstration, we'll set it to true immediately or show a pending message
+      const docRef = doc(db, "users", user.uid);
+      await setDoc(docRef, {
+        verificationPending: true
+      }, { merge: true });
+      setVerifyMessage("Yêu cầu xác thực đã được gửi tới Quản trị viên. Xin vui lòng chờ.");
+      toast.success("Yêu cầu xác thực đã được gửi tới Quản trị viên.");
     } catch (error) {
-      toast.error("Không thể lưu API Key. Vui lòng thử lại.");
+      setVerifyMessage("Không thể gửi yêu cầu xác thực.");
+      toast.error("Không thể gửi yêu cầu xác thực.");
     } finally {
-      setSavingKey(false);
+      setSaving(false);
     }
   };
 
   const handleTogglePrivacy = async (field: 'hideEmail' | 'hidePhone') => {
     if (!user) return;
     const newValue = !profileData[field];
+    
+    // Optimistic update
     setProfileData(prev => ({ ...prev, [field]: newValue }));
-
+    
     try {
-      await setDoc(doc(db, "users", user.uid), { [field]: newValue }, { merge: true });
+      const docRef = doc(db, "users", user.uid);
+      await setDoc(docRef, {
+        [field]: newValue
+      }, { merge: true });
       toast.success("Đã cập nhật cài đặt riêng tư thành công!");
     } catch (error) {
+      console.error("Lỗi cập nhật riêng tư:", error);
+      // rollback
       setProfileData(prev => ({ ...prev, [field]: !newValue }));
       toast.error("Không thể lưu cài đặt riêng tư.");
     }
@@ -168,19 +207,19 @@ export default function Profile() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Cài đặt</h1>
-            <p className="text-sm text-slate-500 mt-1">Quản lý thông tin tài khoản và API key AI</p>
+            <p className="text-sm text-slate-500 mt-1">Quản lý thông tin tài khoản và xác thực giáo viên</p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Left Column */}
+          {/* Left Column: Verification Status */}
           <div className="col-span-1 space-y-6">
             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm text-center">
               <div className="relative w-24 h-24 mx-auto mb-4 group">
                 {profileData.avatar ? (
-                  <img
-                    src={profileData.avatar}
-                    alt="Avatar"
+                  <img 
+                    src={profileData.avatar} 
+                    alt="Avatar" 
                     className="w-24 h-24 rounded-full object-cover border border-slate-200 shadow-sm"
                     referrerPolicy="no-referrer"
                   />
@@ -191,111 +230,96 @@ export default function Profile() {
                 )}
                 <label className="absolute bottom-0 right-0 p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-full cursor-pointer shadow-md transition-all border-2 border-white flex items-center justify-center hover:scale-105 active:scale-95">
                   <Camera className="w-4 h-4" />
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    className="hidden" 
                     onChange={handleAvatarChange}
                   />
                 </label>
               </div>
               <h2 className="text-lg font-bold text-slate-900 mb-1">{profileData.name || "Giáo viên"}</h2>
-              <p className="text-sm text-slate-500">{profileData.workplace || "Chưa cập nhật nơi công tác"}</p>
-
-              <div className="mt-4 pt-4 border-t border-slate-100">
-                <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border ${
-                  profileData.verified
-                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                    : 'bg-slate-100 text-slate-600 border-slate-200'
-                }`}>
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  {profileData.verified ? 'Tài khoản đã xác thực' : 'Chưa xác thực'}
+              <p className="text-sm text-slate-500 mb-4">{profileData.workplace || "Chưa cập nhật nơi công tác"}</p>
+              
+              <div className="pt-4 border-t border-slate-100">
+                <div className="flex flex-col items-center gap-3">
+                  <div className={`px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 border ${
+                    profileData.package === 'enterprise' ? 'bg-purple-50 text-purple-700 border-purple-200' : 
+                    profileData.package === 'pro' ? 'bg-blue-50 text-blue-700 border-blue-200' : 
+                    'bg-slate-100 text-slate-600 border-slate-200'
+                  }`}>
+                    <ShieldCheck className="w-4 h-4" /> 
+                    {profileData.package === 'enterprise' ? 'Gói Enterprise' : 
+                     profileData.package === 'pro' ? 'Gói Pro' : 'Gói Cơ bản (Miễn phí)'}
+                  </div>
+                  
+                  {profileData.package && profileData.package !== 'free' && profileData.expiresAt ? (
+                     <p className="text-xs text-slate-500">
+                       Hết hạn: <span className="font-semibold">{new Date(profileData.expiresAt).toLocaleDateString('vi-VN')}</span>
+                     </p>
+                  ) : (
+                     <p className="text-xs text-slate-500 px-4">
+                       Bạn đang sử dụng phiên bản giới hạn (2 lượt tạo/tài khoản).
+                     </p>
+                  )}
+                  
+                  <div className="w-full">
+                    <button 
+                      className={`mt-2 w-full flex items-center justify-center gap-2 ${profileData.package && profileData.package !== 'free' && profileData.expiresAt ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-blue-600 hover:bg-blue-500'} text-white px-4 py-2.5 rounded-lg text-sm font-bold transition-colors cursor-pointer`}
+                      onClick={() => setShowUpgradeOptions(!showUpgradeOptions)}
+                    >
+                      <Sparkles className="w-4 h-4 animate-pulse" /> {profileData.package && profileData.package !== 'free' && profileData.expiresAt ? 'Gia hạn tài khoản' : 'Nâng cấp tài khoản ngay'}
+                    </button>
+                    
+                    {showUpgradeOptions && (
+                      <div className="mt-3 text-left border-t border-slate-100 pt-3 space-y-2 animate-fade-in">
+                        <p className="text-[11px] text-slate-500 font-semibold mb-1">Chọn gói đăng ký:</p>
+                        
+                        <button 
+                          onClick={() => setSelectedPackage({ key: 'pro', label: '1 Tháng (Pro)', price: '80.000đ', days: 30 })}
+                          className="w-full p-2.5 rounded-lg border border-slate-200 hover:border-blue-400 bg-slate-50/50 hover:bg-blue-50/30 text-left transition-colors flex justify-between items-center cursor-pointer group"
+                        >
+                          <div>
+                            <p className="text-xs font-bold text-slate-800">Gói Pro - 1 Tháng</p>
+                            <p className="text-[10px] text-slate-500">Đầy đủ chức năng</p>
+                          </div>
+                          <span className="text-xs font-extrabold text-blue-600">80.000đ</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-
+            
             <div className="bg-blue-50 border border-blue-100 rounded-xl p-5 shadow-sm">
               <h3 className="text-sm font-bold text-blue-900 mb-2 flex items-center gap-2">
-                <KeyRound className="w-4 h-4 text-blue-600" /> Về Gemini API Key
+                <ShieldCheck className="w-4 h-4 text-blue-600"/> Lợi ích xác thực
               </h3>
               <ul className="text-xs text-blue-800 space-y-2 list-disc list-inside">
-                <li>Lấy miễn phí tại Google AI Studio</li>
-                <li>Key cá nhân — không bị giới hạn lượt dùng</li>
-                <li>Được mã hóa và lưu trữ an toàn</li>
-                <li>Dùng cho tất cả tính năng AI trên web</li>
+                <li>Sử dụng không giới hạn AI Video Studio</li>
+                <li>Hỗ trợ xử lý tài liệu khối lượng lớn</li>
+                <li>Lưu trữ bài giảng không giới hạn</li>
+                <li>Tham gia cộng đồng giáo viên VIP</li>
               </ul>
             </div>
           </div>
 
-          {/* Right Column */}
+          {/* Right Column: Edit Form & Privacy Settings */}
           <div className="col-span-1 md:col-span-2 space-y-6">
-            {/* Gemini API Key Section */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="px-6 py-5 border-b border-slate-200 bg-slate-50/50">
-                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <KeyRound className="w-5 h-5 text-blue-600" /> Gemini API Key
-                </h2>
-                <p className="text-sm text-slate-500 mt-1">
-                  Nhập API key cá nhân để sử dụng AI. Lấy miễn phí tại{" "}
-                  <a
-                    href="https://aistudio.google.com/app/apikey"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline font-medium"
-                  >
-                    Google AI Studio
-                  </a>
-                  .
-                </p>
-              </div>
-
-              <div className="p-6">
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <input
-                      type={showApiKey ? "text" : "password"}
-                      value={geminiApiKey}
-                      onChange={(e) => setGeminiApiKey(e.target.value)}
-                      placeholder="AIza..."
-                      className="block w-full px-4 py-2.5 pr-10 border border-slate-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 font-mono"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowApiKey(!showApiKey)}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
-                    >
-                      {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  <button
-                    onClick={handleSaveApiKey}
-                    disabled={savingKey}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50"
-                  >
-                    {savingKey ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                    Lưu Key
-                  </button>
-                </div>
-                <p className="text-xs text-slate-400 mt-2">
-                  Key được lưu trong tài khoản và sử dụng tự động cho mọi tính năng AI.
-                </p>
-              </div>
-            </div>
-
-            {/* Contact Info */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="px-6 py-5 border-b border-slate-200 bg-slate-50/50">
                 <h2 className="text-lg font-bold text-slate-900">Thông tin liên hệ</h2>
                 <p className="text-sm text-slate-500 mt-1">Cập nhật thông tin để hệ thống hỗ trợ tốt hơn.</p>
               </div>
-
+              
               <div className="p-6">
                 {isLocked && (
                   <div className="mb-6 p-4 bg-amber-50 border border-amber-200 text-amber-800 text-xs sm:text-sm rounded-xl flex items-start gap-2.5 shadow-sm">
                     <Lock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                     <div>
                       <p className="font-bold text-amber-950">Thông tin hồ sơ đã bị khóa</p>
-                      <p className="text-amber-800/95 mt-0.5 leading-relaxed">Hồ sơ đã được cập nhật đầy đủ và khóa tự động. Vui lòng liên hệ ban quản trị nếu cần sửa đổi.</p>
+                      <p className="text-amber-800/95 mt-0.5 leading-relaxed">Hồ sơ của thầy cô đã được cập nhật đầy đủ thông tin (Họ tên, SĐT, Nơi công tác) và đã được khóa tự động để bảo vệ quyền lợi hội viên. Vui lòng liên hệ với ban quản trị nếu cần sửa đổi.</p>
                     </div>
                   </div>
                 )}
@@ -313,26 +337,26 @@ export default function Profile() {
                       <label className="block text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
                         <UserCircle className="w-4 h-4 text-slate-400" /> Họ và Tên
                       </label>
-                      <input
-                        type="text"
-                        required
+                      <input 
+                        type="text" 
+                        required 
                         disabled={isLocked || saving}
                         value={profileData.name}
                         onChange={(e) => setProfileData({...profileData, name: e.target.value})}
                         className={`block w-full px-4 py-2 border rounded-lg sm:text-sm transition-colors ${
-                          isLocked
-                            ? "border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed"
+                          isLocked 
+                            ? "border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed" 
                             : "border-slate-300 focus:ring-blue-500 focus:border-blue-500"
                         }`}
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
-                        <Mail className="w-4 h-4 text-slate-400" /> Email
+                        <Mail className="w-4 h-4 text-slate-400" /> Email nội bộ
                       </label>
-                      <input
-                        type="email"
-                        disabled
+                      <input 
+                        type="email" 
+                        disabled 
                         value={profileData.email}
                         className="block w-full px-4 py-2 border border-slate-200 bg-slate-50 text-slate-500 rounded-lg sm:text-sm cursor-not-allowed"
                       />
@@ -342,15 +366,15 @@ export default function Profile() {
                       <label className="block text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
                         <Phone className="w-4 h-4 text-slate-400" /> Số điện thoại
                       </label>
-                      <input
-                        type="tel"
-                        required
+                      <input 
+                        type="tel" 
+                        required 
                         disabled={isLocked || saving}
                         value={profileData.phone}
                         onChange={(e) => setProfileData({...profileData, phone: e.target.value})}
                         className={`block w-full px-4 py-2 border rounded-lg sm:text-sm transition-colors ${
-                          isLocked
-                            ? "border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed"
+                          isLocked 
+                            ? "border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed" 
                             : "border-slate-300 focus:ring-blue-500 focus:border-blue-500"
                         }`}
                       />
@@ -359,15 +383,15 @@ export default function Profile() {
                       <label className="block text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
                         <MapPin className="w-4 h-4 text-slate-400" /> Nơi công tác
                       </label>
-                      <input
-                        type="text"
-                        required
+                      <input 
+                        type="text" 
+                        required 
                         disabled={isLocked || saving}
                         value={profileData.workplace}
                         onChange={(e) => setProfileData({...profileData, workplace: e.target.value})}
                         className={`block w-full px-4 py-2 border rounded-lg sm:text-sm transition-colors ${
-                          isLocked
-                            ? "border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed"
+                          isLocked 
+                            ? "border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed" 
                             : "border-slate-300 focus:ring-blue-500 focus:border-blue-500"
                         }`}
                       />
@@ -375,8 +399,8 @@ export default function Profile() {
                   </div>
 
                   <div className="pt-4 border-t border-slate-100 flex justify-end">
-                    <button
-                      type="submit"
+                    <button 
+                      type="submit" 
                       disabled={isLocked || saving}
                       className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
@@ -388,25 +412,26 @@ export default function Profile() {
               </div>
             </div>
 
-            {/* Privacy Settings */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            {/* Cài đặt riêng tư */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden animate-fade-in">
               <div className="px-6 py-5 border-b border-slate-200 bg-slate-50/50">
                 <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                   <ShieldCheck className="w-5 h-5 text-blue-600" /> Cài đặt riêng tư
                 </h2>
                 <p className="text-sm text-slate-500 mt-1">
-                  Kiểm soát thông tin nào được hiển thị công khai với đồng nghiệp.
+                  Kiểm soát thông tin nào được hiển thị công khai với đồng nghiệp trên hệ thống.
                 </p>
               </div>
-
+              
               <div className="p-6 space-y-4">
+                {/* Email Privacy */}
                 <div className="flex items-center justify-between p-4 bg-slate-50/50 rounded-xl border border-slate-100 hover:bg-slate-50 transition-colors">
                   <div className="space-y-0.5 pr-4">
                     <label className="text-sm font-bold text-slate-800 flex items-center gap-1.5 cursor-pointer" onClick={() => handleTogglePrivacy('hideEmail')}>
                       <Mail className="w-4 h-4 text-slate-400" /> Ẩn Email liên hệ
                     </label>
                     <p className="text-xs text-slate-500 leading-relaxed">
-                      Khi bật, Email sẽ hiển thị là "Đã ẩn để bảo mật" với đồng nghiệp.
+                      Khi bật, địa chỉ Email của thầy cô sẽ hiển thị là "Đã ẩn để bảo mật" trong danh bạ đồng nghiệp.
                     </p>
                   </div>
                   <button
@@ -424,13 +449,14 @@ export default function Profile() {
                   </button>
                 </div>
 
+                {/* Phone Privacy */}
                 <div className="flex items-center justify-between p-4 bg-slate-50/50 rounded-xl border border-slate-100 hover:bg-slate-50 transition-colors">
                   <div className="space-y-0.5 pr-4">
                     <label className="text-sm font-bold text-slate-800 flex items-center gap-1.5 cursor-pointer" onClick={() => handleTogglePrivacy('hidePhone')}>
                       <Phone className="w-4 h-4 text-slate-400" /> Ẩn Số điện thoại
                     </label>
                     <p className="text-xs text-slate-500 leading-relaxed">
-                      Khi bật, số điện thoại sẽ hiển thị là "Đã ẩn để bảo mật" với đồng nghiệp.
+                      Khi bật, số điện thoại của thầy cô sẽ hiển thị là "Đã ẩn để bảo mật" trong danh bạ đồng nghiệp.
                     </p>
                   </div>
                   <button
@@ -449,9 +475,44 @@ export default function Profile() {
                 </div>
               </div>
             </div>
+
+            {/* Lịch sử mua tài liệu */}
+            <PurchasedItems />
           </div>
         </div>
       </div>
+
+      {/* Interactive Billing Modal */}
+      {selectedPackage && (
+        <PaymentModal
+          user={user}
+          userProfile={profileData}
+          selectedPackage={selectedPackage}
+          onClose={() => setSelectedPackage(null)}
+          onSuccess={() => {
+            setPaymentSuccess(true);
+            setTimeout(() => {
+              setSelectedPackage(null);
+              setPaymentSuccess(false);
+            }, 3000);
+          }}
+        />
+      )}
+
+      {/* Success State Overlay */}
+      {paymentSuccess && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden relative flex flex-col p-8 text-center items-center justify-center">
+            <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center border border-emerald-100 mb-4 animate-bounce">
+              <Check className="w-8 h-8" />
+            </div>
+            <h3 className="text-xl font-bold text-slate-900 mb-2">Gửi yêu cầu thành công!</h3>
+            <p className="text-sm text-slate-500 leading-relaxed max-w-xs">
+              Hệ thống đã nhận được biên lai của thầy cô. Quản trị viên sẽ duyệt và kích hoạt gói <b>{selectedPackage?.label || "dịch vụ"}</b> trong thời gian sớm nhất.
+            </p>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }

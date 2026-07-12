@@ -15,7 +15,6 @@ export interface UserProfile {
   usageCount?: number;
   avatar?: string;
   coins?: number;
-  geminiApiKey?: string;
 }
 
 export interface ResourceItem {

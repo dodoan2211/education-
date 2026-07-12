@@ -1,16 +1,16 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import Layout from "../components/Layout";
-import {
-  BookOpen,
-  Calendar,
-  MonitorPlay,
-  Presentation,
-  Clock,
-  ArrowRight,
-  FileText,
-  AlertTriangle,
-  RefreshCw,
+import { 
+  BookOpen, 
+  Calendar, 
+  MonitorPlay, 
+  Presentation, 
+  Clock, 
+  ArrowRight, 
+  FileText, 
+  AlertTriangle, 
+  RefreshCw, 
   HelpCircle,
   ChevronDown,
   Settings,
@@ -28,8 +28,7 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
-  FileEdit,
-  Heart
+  FileEdit
 } from "lucide-react";
 import { useAuth } from "../AuthContext";
 import { useToast } from "../context/ToastContext";
@@ -471,27 +470,6 @@ export default function Dashboard() {
               <h3 className="text-2xl font-bold text-slate-900 mt-0.5">{stats.plans}</h3>
             </div>
           </div>
-        </div>
-
-        {/* Donate Banner */}
-        <div className="bg-rose-50 border border-rose-100 rounded-xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-rose-100 rounded-lg flex items-center justify-center shrink-0">
-              <Heart className="w-5 h-5 text-rose-600 fill-rose-500" />
-            </div>
-            <div>
-              <h3 className="font-bold text-rose-700 text-sm">Ủng hộ EduCreate</h3>
-              <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
-                EduCreate hoàn toàn miễn phí. Nếu thấy hữu ích, thầy cô có thể ủng hộ để duy trì dịch vụ.
-              </p>
-            </div>
-          </div>
-          <Link
-            to="/donate"
-            className="shrink-0 flex items-center gap-2 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm"
-          >
-            <Heart className="w-3.5 h-3.5 fill-white" /> Ủng hộ ngay
-          </Link>
         </div>
 
         {/* Main Tools Grid */}

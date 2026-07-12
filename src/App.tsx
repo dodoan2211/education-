@@ -7,14 +7,13 @@ import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import ToolArea from "./pages/ToolArea";
+import PlanAccessGuard from "./components/PlanAccessGuard";
 import Competitions from "./pages/Competitions";
 import Profile from "./pages/Profile";
 import Admin from "./pages/Admin";
 import Templates from "./pages/Templates";
 import InfographicMaker from "./pages/InfographicMaker";
 import { useEffect } from "react";
-
-import Donate from "./pages/Donate";
 
 import SharedView from "./pages/SharedView";
 
@@ -96,7 +95,9 @@ export default function App() {
                 path="/tool/:type" 
                 element={
                   <PrivateRoute>
-                    <ToolArea />
+                    <PlanAccessGuard>
+                      <ToolArea />
+                    </PlanAccessGuard>
                   </PrivateRoute>
                 } 
               />
@@ -104,7 +105,9 @@ export default function App() {
                 path="/infographic-maker" 
                 element={
                   <PrivateRoute>
-                    <InfographicMaker />
+                    <PlanAccessGuard>
+                      <InfographicMaker />
+                    </PlanAccessGuard>
                   </PrivateRoute>
                 } 
               />
@@ -117,14 +120,6 @@ export default function App() {
                 } 
               />
               <Route path="/shared/:shareCode" element={<SharedView />} />
-              <Route
-                path="/donate"
-                element={
-                  <PrivateRoute>
-                    <Donate />
-                  </PrivateRoute>
-                }
-              />
               <Route 
                 path="/admin" 
                 element={
